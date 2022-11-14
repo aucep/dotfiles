@@ -1,13 +1,14 @@
 # ' the ONE TRUE CONFIG
 #' by chicken
-
-{ config, pkgs, ... }:
-
 {
-  imports = [ ./hardware-configuration.nix <home-manager/nixos> ];
+  config,
+  pkgs,
+  ...
+}: {
+  imports = [./hardware-configuration.nix <home-manager/nixos>];
 
   nix.settings = {
-    experimental-features = [ "nix-command" "flakes" ];
+    experimental-features = ["nix-command" "flakes"];
     auto-optimise-store = true;
   };
 
@@ -40,7 +41,7 @@
   # graphical env
   services.xserver = {
     enable = true;
-    excludePackages = [ pkgs.xterm ];
+    excludePackages = [pkgs.xterm];
     # autologin <- disabling my broken touchscreen before x is pain
     displayManager.autoLogin.user = "chick";
     windowManager.openbox.enable = true;
@@ -48,17 +49,18 @@
 
   # me
   users.users.chick = {
-    isNormalUser = # so*∕ true;#bestie so
+    isNormalUser =
+      # so*∕ true;#bestie so
       true;
-    extraGroups = [ "wheel" "networkmanager" "video" ];
+    extraGroups = ["wheel" "networkmanager" "video"];
   };
 
   # zsh fixes
   users.defaultUserShell = pkgs.zsh;
-  environment.shells = [ pkgs.zsh ];
+  environment.shells = [pkgs.zsh];
 
   # yeah this is a monolithic config
-  home-manager.users.chick = { pkgs, ... }: {
+  home-manager.users.chick = {pkgs, ...}: {
     nixpkgs.config.allowUnfree = true;
 
     home.packages = with pkgs; [
@@ -103,31 +105,32 @@
               display: none;
             }
           '';
-          /* # turns out this is unstable
-             search = {
-             force = true;
-             default = "Startpage";
-             engines = {
-             "Startpage" = {
-             urls = [{
-             template = "https://startpage.com/sp/search?query={searchTerms}";
-             }];
-             };
-             "NixOS Options" = {
-             urls = [{
-             template = "https://search.nixos.org/options?channel=22.05&from=0&size=50&sort=relevance&type=packages&query={searchTerms}";
-             }];
-             definedAliases = [ "/no" ];
-             };
-             "Home Manager Options" = {
-             urls = [{
-             template = "https://mipmip.github.io/home-manager-option-search/?{searchTerms}";
-             }];
-             definedAliases = [ "/ho" ];
-             };
-             };
-             };
-          */
+          /*
+           # turns out this is unstable
+           search = {
+           force = true;
+           default = "Startpage";
+           engines = {
+           "Startpage" = {
+           urls = [{
+           template = "https://startpage.com/sp/search?query={searchTerms}";
+           }];
+           };
+           "NixOS Options" = {
+           urls = [{
+           template = "https://search.nixos.org/options?channel=22.05&from=0&size=50&sort=relevance&type=packages&query={searchTerms}";
+           }];
+           definedAliases = [ "/no" ];
+           };
+           "Home Manager Options" = {
+           urls = [{
+           template = "https://mipmip.github.io/home-manager-option-search/?{searchTerms}";
+           }];
+           definedAliases = [ "/ho" ];
+           };
+           };
+           };
+           */
         };
       };
 
@@ -156,125 +159,140 @@
 
     home.file = {
       # overengineered openbox config
-      ".config/openbox/rc.xml".text = ''<?xml version="1.0" encoding="UTF-8"?>''
-        + (with pkgs.lib;
-          let
-            genXML = { name, attrs ? { }, children ? [ ] }:
-              let
-                formatAttr = (k: v: " ${k}=\"${v}\"");
-                attrStr = concatStrings (mapAttrsToList formatAttr attrs);
-                childrenStr = concatMapStrings
-                  (c: if (isAttrs c) then (genXML c) else (toString c))
-                  children;
-              in "<${name}${attrStr}>${childrenStr}</${name}>";
-            elemAttr = name: attrs: children: {
-              inherit name;
-              inherit attrs;
-              children = toList children;
-            };
-            elem = name: elemAttr name { };
-          in genXML (elemAttr "openbox_config" {
-            xmlns = "https://openbox.org/3.4/rc";
-            "xmlns:xi" = "http://www.w3.org/2001/XInclude";
-          } [
-            (elem "desktops" (let desktops = [ "page" "code" "else" ];
-            in [
-              (elem "number" (length desktops))
-              (elem "names" (map (elem "name") desktops))
-            ]))
-            (elem "keyboard" (let
-              mkAction = (action:
-                elemAttr "action" { name = action.action or action; }
-                (mapAttrsToList elem (action.options or { })));
-              mkKeybind = (key: data:
-                elemAttr "keybind" { inherit key; }
-                (if (isAttrs data && !(data ? action)) then
-                  (mapAttrsToList mkKeybind data)
-                else
-                  (map mkAction (toList data))));
-            in ([ (elem "chainQuitKey" "C-g") ] ++ (mapAttrsToList mkKeybind
-              (let
-                exec = command: {
-                  action = "Execute";
-                  options = { inherit command; };
+      ".config/openbox/rc.xml".text = let
+        desktops = ["page" "code" "else"];
+        keybinds = {
+          "W-F11" = "Reconfigure";
+          "W-r" = {
+            action = "execute";
+            options = {command = "rofi -show drun";};
+          };
+          "W-S-r" = {
+            action = "execute";
+            options = {command = "dmenu_run";};
+          };
+          "W-S-q" = "Close";
+          "W-b" = "ToggleDecorations";
+          "A-Tab" = "NextWindow";
+          "A-S-Tab" = "PreviousWindow";
+          "W-1" = {
+            action = "GoToDesktop";
+            options = {to = "1";};
+          };
+          "W-2" = {
+            action = "GoToDesktop";
+            options = {to = "2";};
+          };
+          "W-3" = {
+            action = "GoToDesktop";
+            options = {to = "3";};
+          };
+          "W-S-1" = {
+            action = "SendToDesktop";
+            options = {to = "1";};
+          };
+          "W-S-2" = {
+            action = "SendToDesktop";
+            options = {to = "2";};
+          };
+          "W-S-3" = {
+            action = "SendToDesktop";
+            options = {to = "3";};
+          };
+          # pseudo-tiling
+          "W-s" = {
+            "s" = "Maximize";
+            "a" = [
+              "Unmaximize"
+              {
+                action = "MoveResizeTo";
+                options = {
+                  x = "0";
+                  y = "0";
+                  width = "50%";
+                  height = "100%";
                 };
-              in {
-                "W-F11" = "Reconfigure";
-                "W-r" = exec "rofi -show drun";
-                "W-S-r" = exec "dmenu_run";
-                "W-S-q" = "Close";
-                "W-b" = "ToggleDecorations";
-                "A-Tab" = "NextWindow";
-                "A-S-Tab" = "PreviousWindow";
-                "W-1" = {
-                  action = "GoToDesktop";
-                  options = { to = "1"; };
+              }
+            ];
+            "d" = [
+              "Unmaximize"
+              {
+                action = "MoveResizeTo";
+                options = {
+                  x = "-0";
+                  y = "0";
+                  width = "50%";
+                  height = "100%";
                 };
-                "W-2" = {
-                  action = "GoToDesktop";
-                  options = { to = "2"; };
-                };
-                "W-3" = {
-                  action = "GoToDesktop";
-                  options = { to = "3"; };
-                };
-                "W-S-1" = {
-                  action = "SendToDesktop";
-                  options = { to = "1"; };
-                };
-                "W-S-2" = {
-                  action = "SendToDesktop";
-                  options = { to = "2"; };
-                };
-                "W-S-3" = {
-                  action = "SendToDesktop";
-                  options = { to = "3"; };
-                };
-                # pseudo-tiling
-                "W-s" = {
-                  "s" = "Maximize";
-                  "a" = [
-                    "Unmaximize"
-                    {
-                      action = "MoveResizeTo";
-                      options = {
-                        x = "0";
-                        y = "0";
-                        width = "50%";
-                        height = "100%";
-                      };
-                    }
-                  ];
-                  "d" = [
-                    "Unmaximize"
-                    {
-                      action = "MoveResizeTo";
-                      options = {
-                        x = "-0";
-                        y = "0";
-                        width = "50%";
-                        height = "100%";
-                      };
-                    }
-                  ];
-                };
-              })))))
-            (elem "theme" [
-              (elem "titleLayout" "NL")
-              (elem "keepBorder" "no")
-            ])
-            (elem "applications" (mapAttrsToList (class: opts:
-              elemAttr "application" { inherit class; }
-              (mapAttrsToList elem opts)) {
-                "*" = {
-                  decor = "no";
-                  maximized = "yes";
-                };
-                firefox = { desktop = 1; };
-                kitty = { desktop = 2; };
-                element = { desktop = 3; };
-              }))
-          ]));
+              }
+            ];
+          };
+        };
+        applications = {
+          "*" = {
+            decor = "no";
+            maximized = "yes";
+          };
+          firefox = {desktop = 1;};
+          kitty = {desktop = 2;};
+          element = {desktop = 3;};
+        };
+        theme = {
+          titleLayout = "NL";
+          keepBorder = "no";
+        };
+      in (with pkgs.lib; let
+        genXML = {
+          name,
+          attrs ? {},
+          children ? [],
+        }: let
+          attrStr = concatStrings (mapAttrsToList (k: v: " ${k}=\"${v}\"") attrs);
+          childrenStr =
+            concatMapStrings
+            (c:
+              if (isAttrs c)
+              then (genXML c)
+              else (toString c))
+            children;
+        in "<${name}${attrStr}>${childrenStr}</${name}>";
+        elemAttr = name: attrs: children: {
+          inherit name;
+          inherit attrs;
+          children = toList children;
+        };
+        elem = name: elemAttr name {};
+        mkAction = action:
+          elemAttr "action" {name = action.action or action;}
+          (mapAttrsToList elem (action.options or {}));
+        mkKeybind = key: data:
+          elemAttr "keybind" {inherit key;}
+          (
+            if (isAttrs data && !(data ? action))
+            then (mapAttrsToList mkKeybind data)
+            else (map mkAction (toList data))
+          );
+      in
+        ''<?xml version="1.0" encoding="UTF-8"?>''
+        + (genXML
+          (elemAttr "openbox_config"
+            {
+              xmlns = "https://openbox.org/3.4/rc";
+              "xmlns:xi" = "http://www.w3.org/2001/XInclude";
+            }
+            [
+              (elem "desktops" [
+                (elem "number" (length desktops))
+                (elem "names" (map (elem "name") desktops))
+              ])
+              (elem "keyboard" ([(elem "chainQuitKey" "C-g")]
+                  ++ (mapAttrsToList mkKeybind keybinds)))
+              (elem "theme" (mapAttrsToList elem theme))
+              (elem "applications" (mapAttrsToList (class: opts:
+                elemAttr "application" {inherit class;}
+                (mapAttrsToList elem opts))
+              applications))
+            ])));
 
       ".config/openbox/autostart.sh".text = ''
         # my touchscreen is broken and i don't use my touchpad
@@ -287,12 +305,13 @@
         element &
       '';
 
-      /* ".config/zellij/layouts/default.kdl".text = ''
-         layout {
-
-         }
-         '';
-      */
+      /*
+       ".config/zellij/layouts/default.kdl".text = ''
+       layout {
+       
+       }
+       '';
+       */
     };
   };
 
@@ -301,5 +320,4 @@
 
   # don't touch
   system.stateVersion = "22.05";
-
 }
