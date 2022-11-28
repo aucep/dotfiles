@@ -7,30 +7,45 @@
 }: {
   imports = [./hardware-configuration.nix <home-manager/nixos>];
 
+  system = {
+    stateVersion = "22.05";
+    copySystemConfiguration = true;
+  };
+
   nix.settings = {
     experimental-features = ["nix-command" "flakes"];
     auto-optimise-store = true;
   };
 
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # EDT
-  time.timeZone = "America/Detroit";
-
-  networking.networkmanager.enable = true;
-  networking.hostName = "nix220";
-
-  sound = {
-    # apparently alsa has multiplexing now
-    enable = true;
-    # easy sound control??
-    mediaKeys.enable = true;
+  boot.loader = {
+    systemd-boot.enable = true;
+    efi.canTouchEfiVariables = true;
   };
 
-  # easy brightness control
-  services.illum.enable = true;
+  time.timeZone = "America/Detroit";
 
+  networking = {
+    networkmanager.enable = true;
+    hostName = "nix220";
+  };
+
+  # no sound
+
+  services = {
+    # easy brightness control
+    illum.enable = true;
+    
+    # graphical environment
+    xserver = {
+      enable = true;
+      excludePackages = [pkgs.xterm];
+      # disabling my broken touchscreen before x is pain
+      displayManager.autoLogin.user = "chick";
+      # i like having window support
+      windowManager.openbox.enable = true;
+    };
+  };
+  
   # TRACKPOINT!!!!
   hardware.trackpoint = {
     enable = true;
@@ -38,20 +53,9 @@
     sensitivity = 200;
   };
 
-  # graphical env
-  services.xserver = {
-    enable = true;
-    excludePackages = [pkgs.xterm];
-    # autologin <- disabling my broken touchscreen before x is pain
-    displayManager.autoLogin.user = "chick";
-    windowManager.openbox.enable = true;
-  };
-
   # me
   users.users.chick = {
-    isNormalUser =
-      # so*∕ true;#bestie so
-      true;
+    isNormalUser = true;
     extraGroups = ["wheel" "networkmanager" "video"];
   };
 
@@ -63,23 +67,25 @@
   home-manager.users.chick = {pkgs, ...}: {
     nixpkgs.config.allowUnfree = true;
 
+    services = {
+      dunst.enable = true;
+    };
+
     home.packages = with pkgs; [
       # cli
-      htop
-      micro
-      ncdu
-      w3m # view nix docs
-      wget
-      xclip
-      zellij # fancy multiplexer
+      micro # text editor
+      alejandra # nix formatter
+      htop # task manager
+      ncdu # storage usage viewer
+      xclip # clipboard bridge
 
       # gui
-      bitwarden
-      element-desktop
-      gcolor2
-      kitty
-      pcmanfm
-      dmenu
+      kitty # terminal
+      element-desktop # chat
+      scrot # screenshots
+      gimp # image editor
+      pcmanfm # file manager
+      xorg.xkill # last resort
     ];
 
     programs = {
@@ -92,7 +98,11 @@
       firefox = {
         enable = true;
         profiles.main = {
-          id = 0;
+          # essential extensions:
+          # - bitwarden
+          # - ublock origin
+          # - sidebery
+          # - dark reader
           settings = {
             "browser.aboutConfig.showWarning" = false;
             "browser.uidensity" = 1; # compact
@@ -105,39 +115,21 @@
               display: none;
             }
           '';
-          /*
-           # turns out this is unstable
-           search = {
-           force = true;
-           default = "Startpage";
-           engines = {
-           "Startpage" = {
-           urls = [{
-           template = "https://startpage.com/sp/search?query={searchTerms}";
-           }];
-           };
-           "NixOS Options" = {
-           urls = [{
-           template = "https://search.nixos.org/options?channel=22.05&from=0&size=50&sort=relevance&type=packages&query={searchTerms}";
-           }];
-           definedAliases = [ "/no" ];
-           };
-           "Home Manager Options" = {
-           urls = [{
-           template = "https://mipmip.github.io/home-manager-option-search/?{searchTerms}";
-           }];
-           definedAliases = [ "/ho" ];
-           };
-           };
-           };
-           */
         };
+      };
+      
+      neovim = {
+        enable = true;
+        vimAlias = true;
+        plugins = with pkgs.vimPlugins; [
+          vim-nix
+        ];
       };
 
       rofi = {
         enable = true;
         theme = "solarized_alternate";
-        extraConfig.modi = "drun";
+        extraConfig.modi = "drun,run";
       };
 
       zsh = {
@@ -146,10 +138,6 @@
           config = "sudo micro /etc/nixos/configuration.nix";
           update = "sudo nixos-rebuild switch";
         };
-        initExtra = ''
-          zellij
-        '';
-        # envExtra = "export DIRENV_LOG_FORMAT=";
         oh-my-zsh = {
           enable = true;
           theme = "gallifrey";
@@ -158,119 +146,139 @@
     };
 
     home.file = {
+      # ensure screenshots folder exists
+      "screenshots/.keep".text = "keep";
+
+      # nix-shell templates
+      "shells/rust.nix".text = ''
+        { pkgs ? import <nixpkgs> {} }:
+        with pkgs;
+        mkShell {
+            nativeBuildInputs = [cargo rust-analyzer];
+        }
+      '';
+
+      # i saw the reaper and i didn't even try this time
+      
+      # openbox startup
+      ".config/openbox/autostart.sh".text = ''
+        # my touchscreen is broken and i don't use my touchpad
+        xinput disable "Wacom ISDv4 E6 Finger"
+        xinput disable "SynPS/2 Synaptics TouchPad"
+
+        # startup applications
+        firefox &
+        kitty &
+        element-desktop &
+      '';
+
       # overengineered openbox config
-      ".config/openbox/rc.xml".text = let
+      ".config/openbox/rc.xml".text = with pkgs.lib; let
         desktops = ["page" "code" "else"];
+        
+        chainQuitKey = "C-g";
+        
         keybinds = {
           "W-F11" = "Reconfigure";
-          "W-r" = {
-            action = "execute";
-            options = {command = "rofi -show drun";};
-          };
-          "W-S-r" = {
-            action = "execute";
-            options = {command = "dmenu_run";};
-          };
+          "W-r" = action "execute" {command = "rofi -show drun";};
+          "W-S-r" = action "execute" {command = "rofi -show run";};
+          "Print" = action "execute" {command = "scrot ~/screenshots/%F_%H-%M-%S.png";};
+          "S-Print" = action "execute" {command = "scrot -i ~/screenshots/%F_%H-%M-%S.png";};
           "W-S-q" = "Close";
           "W-b" = "ToggleDecorations";
           "A-Tab" = "NextWindow";
           "A-S-Tab" = "PreviousWindow";
-          "W-1" = {
-            action = "GoToDesktop";
-            options = {to = "1";};
-          };
-          "W-2" = {
-            action = "GoToDesktop";
-            options = {to = "2";};
-          };
-          "W-3" = {
-            action = "GoToDesktop";
-            options = {to = "3";};
-          };
-          "W-S-1" = {
-            action = "SendToDesktop";
-            options = {to = "1";};
-          };
-          "W-S-2" = {
-            action = "SendToDesktop";
-            options = {to = "2";};
-          };
-          "W-S-3" = {
-            action = "SendToDesktop";
-            options = {to = "3";};
-          };
+          "W-1" = action "GoToDesktop" {to = 1;};
+          "W-2" = action "GoToDesktop" {to = 2;};
+          "W-3" = action "GoToDesktop" {to = 3;};
+          "W-S-1" = action "SendToDesktop" {to = 1;};
+          "W-S-2" = action "SendToDesktop" {to = 2;};
+          "W-S-3" = action "SendToDesktop" {to = 3;};
           # pseudo-tiling
           "W-s" = {
             "s" = "Maximize";
             "a" = [
               "Unmaximize"
-              {
-                action = "MoveResizeTo";
-                options = {
+              (
+                action "MoveResizeTo"
+                {
                   x = "0";
                   y = "0";
                   width = "50%";
                   height = "100%";
-                };
-              }
+                }
+              )
             ];
             "d" = [
               "Unmaximize"
-              {
-                action = "MoveResizeTo";
-                options = {
+              (
+                action "MoveResizeTo"
+                {
                   x = "-0";
                   y = "0";
                   width = "50%";
                   height = "100%";
-                };
-              }
+                }
+              )
             ];
           };
         };
+        
         applications = {
           "*" = {
             decor = "no";
-            maximized = "yes";
           };
-          firefox = {desktop = 1;};
-          kitty = {desktop = 2;};
-          element = {desktop = 3;};
+          firefox = {
+            desktop = 1;
+            maximized = true;
+          };
+          kitty = {
+            desktop = 2;
+            maximized = true;
+          };
+          element = {
+            desktop = 3;
+            maximized = true;
+          };
         };
+        
         theme = {
           titleLayout = "NL";
           keepBorder = "no";
         };
-      in (with pkgs.lib; let
+
+        # -----------------------------
+
+        action = action: options: {inherit action options;};
         genXML = {
           name,
           attrs ? {},
           children ? [],
         }: let
+          # generate attributes
           attrStr = concatStrings (mapAttrsToList (k: v: " ${k}=\"${v}\"") attrs);
+          # generate children
           childrenStr =
             concatMapStrings
             (c:
-              if (isAttrs c)
-              then (genXML c)
-              else (toString c))
-            children;
+              if isAttrs c
+              then genXML c
+              else toString c)
+            (toList children);
         in "<${name}${attrStr}>${childrenStr}</${name}>";
-        elemAttr = name: attrs: children: {
-          inherit name;
-          inherit attrs;
-          children = toList children;
-        };
+        elemAttr = name: attrs: children: {inherit name attrs children;};
         elem = name: elemAttr name {};
-        mkAction = action:
-          elemAttr "action" {name = action.action or action;}
-          (mapAttrsToList elem (action.options or {}));
-        mkKeybind = key: data:
-          elemAttr "keybind" {inherit key;}
+        toActionElem = action:
+          elemAttr "action"
+          {name = action.action or action;}
+          (mapAttrsToList elem action.options or {});
+        toKeybindElem = key: next:
+          elemAttr "keybind"
+          {inherit key;}
           (
-            if (isAttrs data && !(data ? action))
-            then (mapAttrsToList mkKeybind data)
-            else (map mkAction (toList data))
+            if isAttrs next && !next ? action
+            then mapAttrsToList toKeybindElem next # keybind seq
+            else map toActionElem (toList next) # actions
           );
       in
         ''<?xml version="1.0" encoding="UTF-8"?>''
@@ -285,39 +293,14 @@
                 (elem "number" (length desktops))
                 (elem "names" (map (elem "name") desktops))
               ])
-              (elem "keyboard" ([(elem "chainQuitKey" "C-g")]
-                  ++ (mapAttrsToList mkKeybind keybinds)))
+              (elem "keyboard" ([(elem "chainQuitKey" chainQuitKey)]
+                  ++ (mapAttrsToList toKeybindElem keybinds)))
               (elem "theme" (mapAttrsToList elem theme))
-              (elem "applications" (mapAttrsToList (class: opts:
+              (elem "applications" (mapAttrsToList (class: options:
                 elemAttr "application" {inherit class;}
-                (mapAttrsToList elem opts))
+                (mapAttrsToList elem options))
               applications))
-            ])));
-
-      ".config/openbox/autostart.sh".text = ''
-        # my touchscreen is broken and i don't use my touchpad
-        xinput disable "Wacom ISDv4 E6 Finger"
-        xinput disable "SynPS/2 Synaptics TouchPad"
-
-        # startup applications
-        firefox &
-        kitty &
-        element &
-      '';
-
-      /*
-       ".config/zellij/layouts/default.kdl".text = ''
-       layout {
-       
-       }
-       '';
-       */
+            ]));
     };
   };
-
-  # back up config
-  system.copySystemConfiguration = true;
-
-  # don't touch
-  system.stateVersion = "22.05";
 }
